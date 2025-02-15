@@ -8,7 +8,7 @@ Esta API foi desenvolvida para a disciplina de API na Pós-graduação em Sistem
 - **Framework:** FastAPI
 - **Banco de Dados:** SQLite (utilizando SQLAlchemy e databases)
 - **Modelos de IA:** Integração com Groq e OpenAI
-- **Outras Bibliotecas:** guardrails, tiktoken, entre outras (consulte o `requirements.txt`)
+- **Outras Bibliotecas:** tiktoken, entre outras (consulte o `requirements.txt`)
 
 ## Estrutura do Projeto
 
