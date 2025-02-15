@@ -1,15 +1,30 @@
+import os
+import json
+from typing import Dict, Any
 from fastapi import APIRouter, HTTPException, Query
 from sqlalchemy import insert
-from typing import Dict, Any
-import os
-
 from models import database, historias
-from utils import obter_logger_e_configuracao, verify_token, executar_prompt
+from utils import obter_logger_e_configuracao, executar_prompt
 from openai import OpenAI
 
 logger = obter_logger_e_configuracao()
 router = APIRouter()
 
+def _force_serializable(obj: Any) -> Any:
+    """
+    Converte um objeto para um formato serializável (usando JSON).
+    
+    Args:
+        obj (Any): Objeto a ser convertido.
+    
+    Returns:
+        Any: Objeto convertido para tipos primitivos ou sua representação em string.
+    """
+    try:
+        return json.loads(json.dumps(obj, default=str))
+    except Exception as e:
+        logger.error(f"Erro na conversão para serializável: {e}")
+        return str(obj)
 
 @router.post(
     "/gerar_historia",
@@ -21,7 +36,7 @@ router = APIRouter()
 )
 async def gerar_historia_v1(tema: str, x_api_token: str = Query(...)) -> Dict[str, Any]:
     """
-    Gera uma história básica a partir do tema fornecido.
+    Gera uma história básica a partir de um tema.
 
     Args:
         tema (str): Tema da história.
@@ -38,7 +53,7 @@ async def gerar_historia_v1(tema: str, x_api_token: str = Query(...)) -> Dict[st
         if not response.get("GROQ") and not response.get("OPENAI"):
             raise HTTPException(status_code=400, detail="Nenhum serviço retornou resposta válida.")
         
-        # Inserção dos dados no banco
+        # Insere os dados no banco
         query = insert(historias).values(
             prompt=tema,
             groq=response.get("GROQ"),
@@ -49,7 +64,12 @@ async def gerar_historia_v1(tema: str, x_api_token: str = Query(...)) -> Dict[st
         logger.error(f"[v1] Erro ao gerar história: {e}")
         raise HTTPException(status_code=500, detail="Erro interno ao gerar história")
     
-    return {"historia": {"Groq": response.get("GROQ"), "OpenAI": response.get("OPENAI")}}
+    return {
+        "historia": {
+            "Groq": response.get("GROQ"),
+            "OpenAI": response.get("OPENAI")
+        }
+    }
 
 @router.post(
     "/resumir_texto",
@@ -79,7 +99,8 @@ async def resumir_texto_v1(texto: str, x_api_token: str = Query(...)) -> Dict[st
             model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
         )
         resumo: str = response.choices[0].message.content
-        tokens: Dict[str, Any] = response.usage.__dict__
+        tokens_raw: Dict[str, Any] = response.usage.__dict__
+        tokens: Dict[str, Any] = _force_serializable(tokens_raw)
     except Exception as e:
         logger.error(f"[v1] Erro ao resumir texto: {e}")
         raise HTTPException(status_code=500, detail="Erro interno ao resumir texto")
