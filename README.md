@@ -69,21 +69,16 @@ Esta API foi desenvolvida para a disciplina de API na Pós-graduação em Sistem
 
 ### Ambiente de Desenvolvimento
 
-Para executar a API em modo desenvolvimento (com auto-reload), utilize:
+Para executar a API em modo desenvolvimento, utilize:
 
-```bash
-uvicorn main:app --reload
-```
+fastapi dev main.py
 
-> **Observação:** Algumas instruções anteriores usavam comandos como `fastapi dev main.py`, mas a prática comum é usar o Uvicorn para rodar a aplicação.
 
 ### Ambiente de Produção
 
 Para executar a API em produção, utilize:
 
-```bash
-uvicorn main:app
-```
+fastapi run main.py
 
 ## Documentação Interativa
 
