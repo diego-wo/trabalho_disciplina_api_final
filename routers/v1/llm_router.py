@@ -1,25 +1,55 @@
-from fastapi import APIRouter, HTTPException, Query
-from models import database, historias
-from sqlalchemy import insert
-from utils import obter_logger_e_configuracao, executar_prompt
 import os
+import json
+from typing import Dict, Any
+from fastapi import APIRouter, HTTPException, Query
+from sqlalchemy import insert
+from models import database, historias
+from utils import obter_logger_e_configuracao, executar_prompt
+from openai import OpenAI
 
 logger = obter_logger_e_configuracao()
 router = APIRouter()
 
+def _force_serializable(obj: Any) -> Any:
+    """
+    Converte um objeto para um formato serializável (usando JSON).
+    
+    Args:
+        obj (Any): Objeto a ser convertido.
+    
+    Returns:
+        Any: Objeto convertido para tipos primitivos ou sua representação em string.
+    """
+    try:
+        return json.loads(json.dumps(obj, default=str))
+    except Exception as e:
+        logger.error(f"Erro na conversão para serializável: {e}")
+        return str(obj)
+
 @router.post(
     "/gerar_historia",
     summary="Gera uma história básica",
-    description="Recebe um tema e retorna uma história gerada por modelos de linguagem (Groq e OpenAI), incluindo informações de contagem de tokens.",
+    description=(
+        "Recebe um tema e retorna uma história gerada por modelos de linguagem (Groq e OpenAI), "
+        "incluindo informações de contagem de tokens."
+    ),
 )
-async def gerar_historia_v1(tema: str, x_api_token: str = Query(...)):
+async def gerar_historia_v1(tema: str, x_api_token: str = Query(...)) -> Dict[str, Any]:
+    """
+    Gera uma história básica a partir de um tema.
+
+    Args:
+        tema (str): Tema da história.
+        x_api_token (str): Token de autenticação fornecido via query.
+
+    Returns:
+        dict: Dicionário contendo as respostas dos serviços Groq e OpenAI.
+    """
     logger.info(f"[v1] Tema informado: {tema}")
     try:
-        # Cria um prompt simples a partir do tema
-        prompt = f"Escreva uma história sobre {tema}"
-        response = executar_prompt(prompt)
+        prompt: str = f"Escreva uma história sobre {tema}"
+        response: Dict[str, Any] = executar_prompt(prompt)
         
-        # Verifica se ao menos um serviço retornou resultado
         if not response.get("GROQ") and not response.get("OPENAI"):
             raise HTTPException(status_code=400, detail="Nenhum serviço retornou resposta válida.")
         
@@ -34,7 +64,6 @@ async def gerar_historia_v1(tema: str, x_api_token: str = Query(...)):
         logger.error(f"[v1] Erro ao gerar história: {e}")
         raise HTTPException(status_code=500, detail="Erro interno ao gerar história")
     
-    # Retorna os resultados de forma organizada, incluindo a contagem de tokens
     return {
         "historia": {
             "Groq": response.get("GROQ"),
@@ -45,20 +74,33 @@ async def gerar_historia_v1(tema: str, x_api_token: str = Query(...)):
 @router.post(
     "/resumir_texto",
     summary="Resume um texto básico",
-    description="Recebe um texto e retorna um resumo simples utilizando a API OpenAI, incluindo dados de tokenização.",
+    description=(
+        "Recebe um texto e retorna um resumo simples utilizando a API OpenAI, "
+        "incluindo dados de tokenização."
+    ),
 )
-async def resumir_texto_v1(texto: str, x_api_token: str = Query(...)):
+async def resumir_texto_v1(texto: str, x_api_token: str = Query(...)) -> Dict[str, Any]:
+    """
+    Resume um texto utilizando a API OpenAI.
+
+    Args:
+        texto (str): Texto a ser resumido.
+        x_api_token (str): Token de autenticação fornecido via query.
+
+    Returns:
+        dict: Dicionário contendo o resumo e os dados de tokenização.
+    """
     logger.info(f"[v1] Texto para resumo recebido: {texto[:30]}...")
     try:
-        prompt = f"Resuma o seguinte texto: {texto}"
-        from openai import OpenAI
+        prompt: str = f"Resuma o seguinte texto: {texto}"
         client_openai = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
         response = client_openai.chat.completions.create(
             messages=[{"role": "user", "content": prompt}],
             model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
         )
-        resumo = response.choices[0].message.content
-        tokens = response.usage.__dict__
+        resumo: str = response.choices[0].message.content
+        tokens_raw: Dict[str, Any] = response.usage.__dict__
+        tokens: Dict[str, Any] = _force_serializable(tokens_raw)
     except Exception as e:
         logger.error(f"[v1] Erro ao resumir texto: {e}")
         raise HTTPException(status_code=500, detail="Erro interno ao resumir texto")
